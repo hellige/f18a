@@ -67,6 +67,14 @@ static void dumpstate(f18a *f) {
   f18a_msg(
       "%03x %05x %05x %05x %05x %03x %05x %d %03x %s\n",
       f->p, f->r, f->t, f->s, f->a, f->b, f->i, f->slot, op, opnames[op]);
+  f18a_msg("   stack: [%d]", f->sp);
+  for (int i = 0; i < STACK_WORDS; i++)
+    f18a_msg(" %05x", f->stack[(f->sp + i) % STACK_WORDS]);
+  f18a_msg("\n");
+  f18a_msg("  rstack: [%d]", f->rsp);
+  for (int i = 0; i < RSTACK_WORDS; i++)
+    f18a_msg(" %05x", f->rstack[(f->rsp + i) % RSTACK_WORDS]);
+  f18a_msg("\n");
 }
 
 static void dumpram(f18a *f18a, u16 addr, int len) {}
