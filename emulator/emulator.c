@@ -86,6 +86,8 @@ static u32 load(f18a *f18a, u32 addr) {
   if (addr < 0x100)
     return f18a->rom[addr & 0x3f];
 
+  if (addr == IO_ADDR) return f18a->io;
+
   f18a_msg("io addr access from %x! returning 0...\n", addr);
   return 0;
 }
@@ -125,16 +127,26 @@ u8 f18a_decode_op(f18a *f18a) {
 }
 
 
-static u8 next(f18a *f18a) {
+static void next(f18a *f18a) {
   if (f18a->slot > 3) {
     // fetch next instruction word
     f18a->i = loadinc(f18a, &f18a->p);
     f18a->slot = 0;
   }
+}
 
-  u8 op = f18a_decode_op(f18a);
-  f18a->slot++;
-  return op;
+
+static void push(f18a *f) {
+  f->sp = (f->sp + STACK_WORDS) % STACK_WORDS;
+  f->stack[f->sp] = f->s;
+  f->s = f->t;
+}
+
+
+static void pop(f18a *f, bool set_t) {
+  if (set_t) f->t = f->s;
+  f->s = f->stack[f->sp];
+  f->sp = (f->sp + STACK_WORDS - 1) % STACK_WORDS;
 }
 
 
@@ -166,19 +178,53 @@ static action_t execute(f18a *f, u8 op) {
       skip(f);
       break;
 
-    // TODO...
+    case OP_ATB:
+      push(f);
+      f->t = load(f, f->b);
+      break;
+
+    case OP_INV:
+      f->t = ~f->t;
+      break;
+
+    case OP_ADD:
+      // TODO add with carry in case of p9
+      f->t += f->s;
+      pop(f, false);
+      break;
+
+    case OP_AND:
+      // spec says "boolean" but surely means "bitwise"
+      f->t = f->t & f->s;
+      pop(f, false);
+      break;
+
+    case OP_OR:
+      // spec says "boolean" but surely means "bitwise"
+      f->t = f->t ^ f->s;
+      pop(f, false);
+      break;
+
+    case OP_NOP:
+      break;
   }
+
   return A_CONTINUE;
 }
 
 
 action_t f18a_step(f18a *f18a) {
-  return execute(f18a, next(f18a));
+  u8 op = f18a_decode_op(f18a);
+  f18a->slot++;
+  action_t result = execute(f18a, op);
+  next(f18a);
+  return result;
 }
 
 
 void f18a_run(f18a *f18a, bool debugboot) {
   bool running = true;
+  next(f18a);
   if (debugboot) running = f18a_debug(f18a);
   f18a_msg("running...\n");
   f18a_runterm();
