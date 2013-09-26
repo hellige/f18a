@@ -58,15 +58,16 @@ static void dumpram(dcpu *dcpu, u16 addr, int len) {
 
 static void dumpheader(void) {
   f18a_msg(
-      "p   r     t     s     a     b   i     @ opcode\n"
-      "--- ----- ----- ----- ----- --- ----- - --------\n");
+      "p   r     t     s     a     b   io    i     @ opcode\n"
+      "--- ----- ----- ----- ----- --- ----- ----- - --------\n");
 }
 
 static void dumpstate(f18a *f) {
   u8 op = f18a_decode_op(f);
   f18a_msg(
-      "%03x %05x %05x %05x %05x %03x %05x %d %03x %s\n",
-      f->p, f->r, f->t, f->s, f->a, f->b, f->i, f->slot, op, opnames[op]);
+      "%03x %05x %05x %05x %05x %03x %05x %05x %d %03x %s\n",
+      f->p, f->r, f->t, f->s, f->a, f->b, f->io, f->i, f->slot, op,
+      opnames[op]);
   f18a_msg("   stack: [%d]", f->sp);
   for (int i = 0; i < STACK_WORDS; i++)
     f18a_msg(" %05x", f->stack[(f->sp + i) % STACK_WORDS]);
