@@ -1,0 +1,95 @@
+#!/usr/bin/env python
+
+import re
+import struct
+import sys
+
+class SyntaxError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+OPCODES = {}
+NEXT_OP = 0
+
+class Op(object):
+    def __init__(self, name):
+        global NEXT_OP
+        OPCODES[name] = self
+        self.name = name
+        self.code = NEXT_OP
+        NEXT_OP += 1
+
+# basic ops...
+Op(";"); Op("ex"); Op("jmp"); Op("call"); Op("unext"); Op("next"); Op("if"); Op("-if")
+Op("@p"); Op("@+"); Op("@b"); Op("@"); Op("!p"); Op("!+"); Op("!b"); Op("!")
+Op("+*"); Op("2*"); Op("2/"); Op("-"); Op("+"); Op("and"); Op("or"); Op("drop")
+Op("dup"); Op("pop"); Op("over"); Op("a"); Op("."); Op("push"); Op("b!"); Op("a!")
+
+hex_re = re.compile('0x[0-9A-Fa-f]+')
+dec_re = re.compile('-?[0-9]+')
+
+rshifts = [0, 0, 0, 2]
+lshifts = [13, 8, 3, 0]
+
+class Word(object):
+    def __init__(self):
+        self.ops = 0
+        self.cur_slot = 0
+
+    def asm_op(self, op):
+        if self.cur_slot == 3 and op.code & 3:
+            raise SyntaxError("invalid slot 3 opcode: " + op.name)
+        self.ops |= ((op.code >> rshifts[self.cur_slot])
+            << lshifts[self.cur_slot])
+        self.cur_slot += 1
+        return self.cur_slot > 3
+
+    def emit(self, f):
+        f.write(struct.pack('>L', self.ops ^ 0x15555))
+
+class Program(object):
+    def __init__(self):
+        self.words = []
+        self.cur_word = None
+
+    def asm_op(self, op):
+        if not self.cur_word:
+            self.cur_word = Word()
+            self.words.append(self.cur_word)
+        if self.cur_word.asm_op(op):
+            self.cur_word = None
+
+    def asm_line(self, line):
+        for tok in line.split():
+            # TODO if int, then...
+            # TODO jumps, next need to consume a subsequent token...
+            try: self.asm_op(OPCODES[tok])
+            except KeyError: raise SyntaxError("invalid opcode: " + tok)
+
+    def emit(self, f):
+        for word in self.words:
+            word.emit(f)
+
+
+def main():
+    if len(sys.argv) == 3:
+        input_filename = sys.argv[1]
+        output_filename = sys.argv[2]
+    else:
+        print "usage: fasm <input.asm> <output.img>"
+        sys.exit(1)
+
+    program = Program()
+    with open(input_filename) as f:
+        for lineno, line in enumerate(f):
+            try:
+                program.asm_line(line)
+            except SyntaxError as e: 
+                print ("Syntax error on line %d: %s" % (lineno+1, e.msg))
+                sys.exit(1)
+
+    with open(output_filename, "wb") as f:
+        program.emit(f)
+
+if __name__ == '__main__':
+    main()
