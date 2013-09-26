@@ -45,9 +45,10 @@ typedef uint64_t tstamp_t;
 #define RSTACK_WORDS 8
 #define IO_ADDR 0x15d
 #define BOOT_ADDR 0x0aa
-#define OP_XOR_MASK 0x15556
+#define OP_XOR_MASK 0x15555
 #define ADDR_MASK 0x1ff
 #define MAX_VAL 0x3ffff
+#define MAX_P 0x3ff
 
 #define SCR_HEIGHT 1
 

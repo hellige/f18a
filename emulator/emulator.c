@@ -138,8 +138,37 @@ static u8 next(f18a *f18a) {
 }
 
 
-static action_t execute(f18a *f18a, u8 instr) {
-  return A_BREAK; // TODO
+static void popr(f18a *f) {
+  f->r = f->rstack[f->rsp];
+  f->rsp = (f->rsp + RSTACK_WORDS - 1) % RSTACK_WORDS;
+}
+
+
+static void skip(f18a *f) {
+  f->slot = 4;
+}
+
+
+static action_t execute(f18a *f, u8 op) {
+  switch (op) {
+    case OP_RET:
+      f->p = f->r & MAX_P;
+      popr(f);
+      skip(f);
+      break;
+
+    case OP_EXEC:
+      {
+        u32 tmp = f->r;
+        f->r = f->p;
+        f->p = tmp & MAX_P;
+      }
+      skip(f);
+      break;
+
+    // TODO...
+  }
+  return A_CONTINUE;
 }
 
 
