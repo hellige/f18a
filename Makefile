@@ -1,10 +1,8 @@
 CC = gcc
 DEBUG = 
-CFLAGS = -ggdb3 -std=gnu99 -O3 -Wall -Wextra -pedantic $(DEBUG) $(PLATCFLAGS) \
-    `pkg-config --silence-errors --cflags sdl` \
-    $(shell pkg-config --exists sdl && echo "-DUSE_SDL")
+CFLAGS = -ggdb3 -std=gnu99 -O3 -Wall -Wextra -pedantic $(DEBUG) $(PLATCFLAGS)
 
-LIBS = -lncurses `pkg-config --silence-errors --libs sdl` $(PLATLIBS)
+LIBS = -lncurses
 
 PLATCFLAGS = 
 PLATLDFLAGS = 

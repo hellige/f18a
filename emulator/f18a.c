@@ -34,13 +34,6 @@
 #include <string.h>
 #include <termios.h>
 
-/* SDL on Mac OS wants to replace main, and must use funky macros
-   to do it. we don't need any SDL stuff here, but we do need to include
-   SDL.h prior to the definition of main(). ugly. */
-#ifdef USE_SDL
-#include <SDL.h>
-#endif
-
 #include "f18a.h"
 #include "opcodes.h"
 
@@ -52,7 +45,6 @@ static void usage(char **argv) {
   fprintf(stderr, "usage: %s [options] <image>\n", argv[0]);
   fprintf(stderr, "   -h, --help           display this message\n");
   fprintf(stderr, "   -v, --version        display the version and exit\n");
-  fprintf(stderr, "   -g, --graphics       enable graphical display window\n");
   fprintf(stderr, "   -d, --debug-boot     enter debugger on boot\n");
 } 
 
@@ -99,12 +91,11 @@ int main(int argc, char **argv) {
     static struct option long_options[] = {
       {"help", 0, 0, 'h'},
       {"version", 0, 0, 'v'},
-      {"graphics", 0, 0, 'g'},
       {"debug-boot", 0, 0, 'd'},
       {0, 0, 0, 0},
     };
 
-    c = getopt_long(argc, argv, "hvgd", long_options, NULL);
+    c = getopt_long(argc, argv, "hvd", long_options, NULL);
 
     if (c == -1) break;
 
@@ -115,15 +106,6 @@ int main(int argc, char **argv) {
       case 'v':
         puts("f18a" F18A_VERSION);
         return 0;
-      case 'g':
-#ifdef USE_SDL
-        // TODO graphics = true;
-        break;
-#else
-        fprintf(stderr, "graphics not supported in this build!\n");
-        fprintf(stderr, "  (perhaps try installing SDL and rebuilding?)\n");
-        return 1;
-#endif
       case 'd':
         debug = true;
         break;
@@ -144,7 +126,6 @@ int main(int argc, char **argv) {
   block_signals();
   f18a_init(&f18a);
   f18a_initterm();
-  // TODO if (graphics) dcpu_initlem(&dcpu);
   if (!f18a_loadcore(&f18a, image)) {
     tcsetattr(0, TCSANOW, &old_termios);
     return -1;
@@ -155,7 +136,6 @@ int main(int argc, char **argv) {
   f18a_run(&f18a, debug);
 
   f18a_killterm();
-  // TODO if (graphics) vram = f18a_killlem();
   puts(" * f18a halted.");
 
   tcsetattr(0, TCSANOW, &old_termios);
