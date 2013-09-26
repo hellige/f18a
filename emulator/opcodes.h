@@ -38,10 +38,10 @@
   apply(OP_NEXT,  "next") \
   apply(OP_IF,    "if") \
   apply(OP_IFG,   "-if") \
-  apply(OP_ATP,   "@p") \
-  apply(OP_ATPLS, "@+") \
-  apply(OP_ATB,   "@b") \
-  apply(OP_AT,    "@") \
+  apply(OP_LVPI,  "@p") \
+  apply(OP_LVAI,  "@+") \
+  apply(OP_LVB,   "@b") \
+  apply(OP_LVA,   "@") \
   apply(OP_SVPI,  "!p") \
   apply(OP_SVAI,  "!+") \
   apply(OP_SVB,   "!b") \

@@ -49,6 +49,7 @@ typedef uint64_t tstamp_t;
 #define ADDR_MASK 0x1ff
 #define MAX_VAL 0x3ffff
 #define MAX_P 0x3ff
+#define MAX_B 0x1ff
 
 #define SCR_HEIGHT 1
 

@@ -25,6 +25,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <arpa/inet.h>
+#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -57,19 +59,33 @@ bool f18a_loadcore(f18a *f18a, const char *image) {
     return false;
   }
 
-  // TODO load/verify rom...
   int img_size = fread(f18a->ram, 4, RAM_WORDS, img);
+  if (ferror(img)) {
+    f18a_exitmsg("error reading image '%s': %s\n", image, strerror(errno));
+    return false;
+  }
+  img_size += fread(f18a->rom, 4, ROM_WORDS, img);
   if (ferror(img)) {
     f18a_exitmsg("error reading image '%s': %s\n", image, strerror(errno));
     return false;
   }
 
   for (int i = 0; i < RAM_WORDS; i++) {
+    f18a->ram[i] = ntohl(f18a->ram[i]);
     if (f18a->ram[i] & ~MAX_VAL) {
       f18a_msg(
-          "word at 0x%02x (0x%08x) has high bits set! clipping to range!\n",
+          "ram word at 0x%02x (0x%08x) has high bits set! clipping to range!\n",
           i, f18a->ram[i]);
       f18a->ram[i] &= MAX_VAL;
+    }
+  }
+  for (int i = 0; i < ROM_WORDS; i++) {
+    f18a->rom[i] = ntohl(f18a->rom[i]);
+    if (f18a->rom[i] & ~MAX_VAL) {
+      f18a_msg(
+          "rom word at 0x%02x (0x%08x) has high bits set! clipping to range!\n",
+          i, f18a->rom[i]);
+      f18a->rom[i] &= MAX_VAL;
     }
   }
 
@@ -104,6 +120,22 @@ u32 f18a_load(f18a *f18a, u32 addr) {
 }
 
 
+static void store(f18a *f18a, u32 addr, u32 val) {
+  addr &= ADDR_MASK;
+  if (addr < 0x080)
+    f18a->ram[addr & 0x3f] = val;
+  if (addr < 0x100) {
+    f18a_msg("attempt to write 0x%05x to rom address 0x%02x!\n", val, addr);
+    return;
+  }
+
+  // TODO is this right?
+  if (addr == IO_ADDR) f18a->io = val;
+
+  // TODO other io addresses...
+}
+
+
 static void inc(u32 *addr) {
   // in the case of p, wrapping behavior is well specified. in the case of a,
   // however, it's not clear what we should do when bits higher than 10 are
@@ -127,6 +159,11 @@ static u32 loadinc(f18a *f18a, u32 *addr) {
 }
 
 
+static void skip(f18a *f) {
+  f->slot = 4;
+}
+
+
 static const u8 rshifts[] = {13, 8, 3, 0};
 static const u8 masks[] = {31, 31, 31, 7};
 static const u8 lshifts[] = {0, 0, 0, 2};
@@ -135,6 +172,27 @@ u8 f18a_decode_op(f18a *f18a) {
   u32 word = f18a->i ^ OP_XOR_MASK;
   return ((word >> rshifts[f18a->slot]) & masks[f18a->slot])
     << lshifts[f18a->slot];
+}
+
+
+static const u32 dmasks[] = {0x3ff, 0xff, 0x7};
+
+static void jump(f18a *f) {
+  // slot has already been incremented... correct it.
+  u8 slot = f->slot - 1;
+
+  // jumps aren't even decodable from slot 3...
+  assert(slot < 3);
+
+  // we can always safely force p8 to 0. either it's a slot 1/2 jump,
+  // in which case it should be forced, or it's a slot 0 jump, in which
+  // case it'll be overwritten anyway.
+  f->p &= ~0x100;
+  u32 dest = f->i & dmasks[slot];
+  f->p = (f->p | ~dmasks[slot]) & dest;
+
+  // and we're done with this instruction word...
+  skip(f);
 }
 
 
@@ -147,85 +205,94 @@ static void next(f18a *f18a) {
 }
 
 
-static void push(f18a *f) {
-  f->sp = (f->sp + STACK_WORDS) % STACK_WORDS;
+static void push(f18a *f, u32 val) {
+  f->sp = (f->sp + 1) % STACK_WORDS;
   f->stack[f->sp] = f->s;
   f->s = f->t;
+  f->t = val;
 }
 
 
-static void pop(f18a *f, bool set_t) {
-  if (set_t) f->t = f->s;
+static u32 pop(f18a *f) {
+  u32 t = f->t;
+  f->t = f->s;
   f->s = f->stack[f->sp];
   f->sp = (f->sp + STACK_WORDS - 1) % STACK_WORDS;
+  return t;
 }
 
 
-static void popr(f18a *f) {
+static u32 pops(f18a *f) {
+  u32 s = f->s;
+  f->s = f->stack[f->sp];
+  f->sp = (f->sp + STACK_WORDS - 1) % STACK_WORDS;
+  return s;
+}
+
+
+static void pushr(f18a *f, u32 val) {
+  f->rsp = (f->rsp + 1) % RSTACK_WORDS;
+  f->rstack[f->rsp] = f->r;
+  f->r = val;
+}
+
+
+static u32 popr(f18a *f) {
+  u32 r = f->r;
   f->r = f->rstack[f->rsp];
   f->rsp = (f->rsp + RSTACK_WORDS - 1) % RSTACK_WORDS;
-}
-
-
-static void skip(f18a *f) {
-  f->slot = 4;
+  return r;
 }
 
 
 static action_t execute(f18a *f, u8 op) {
   switch (op) {
-    case OP_RET:
-      f->p = f->r & MAX_P;
-      popr(f);
-      skip(f);
-      break;
-
-    case OP_EXEC:
-      {
-        u32 tmp = f->r;
-        f->r = f->p;
-        f->p = tmp & MAX_P;
-      }
-      skip(f);
-      break;
-
-    case OP_ATB:
-      push(f);
-      f->t = f18a_load(f, f->b);
-      break;
-
-    case OP_INV:
-      f->t = ~f->t;
-      break;
-
-    case OP_ADD:
-      // TODO add with carry in case of p9
-      f->t += f->s;
-      pop(f, false);
-      break;
-
-    case OP_AND:
-      // spec says "boolean" but surely means "bitwise"
-      f->t = f->t & f->s;
-      pop(f, false);
-      break;
-
-    case OP_OR:
-      // spec says "boolean" but surely means "bitwise"
-      f->t = f->t ^ f->s;
-      pop(f, false);
-      break;
-
-    case OP_NOP:
-      break;
+    case OP_RET: f->p = f->r & MAX_P; popr(f); skip(f); break;
+    case OP_EXEC: { u32 tmp = f->r; f->r = f->p; f->p = tmp & MAX_P; }
+                  skip(f); break;
+    case OP_JUMP: jump(f); break;
+    case OP_CALL: pushr(f, f->p); jump(f); break;
+    case OP_UNXT: if (f->r) { f->r--; f->slot = 0; } else popr(f); break;
+    case OP_NEXT: if (f->r) { f->r--; jump(f); }
+                    else { popr(f); skip(f); } break;
+    case OP_IF: if (f->t) skip(f); else jump(f); break;
+    case OP_IFG: if (f->t & 0x20000) skip(f); else jump(f); break;
+    case OP_LVPI: push(f, loadinc(f, &f->p)); break;
+    case OP_LVAI: push(f, loadinc(f, &f->a)); break;
+    case OP_LVB: push(f, f18a_load(f, f->b)); break;
+    case OP_LVA: push(f, f18a_load(f, f->a)); break;
+    case OP_SVPI: store(f, f->p, pop(f)); inc(&f->p); break;
+    case OP_SVAI: store(f, f->a, pop(f)); inc(&f->a); break;
+    case OP_SVB: store(f, f->b, pop(f)); break;
+    case OP_SVA: store(f, f->a, pop(f)); break;
+    case OP_MULS: /* TODO */ break;
+    case OP_SHL: f->t <<= 1; break;
+    // implementation-defined, correct on gcc/x86
+    case OP_SHR: f->t = ((int32_t)f->t) >> 1; break;
+    case OP_INV: f->t = ~f->t; break;
+    // TODO add with carry in case of p9
+    case OP_ADD: f->t += pops(f); break;
+    // spec says "boolean" but surely means "bitwise"
+    case OP_AND: f->t = f->t & pops(f); break;
+    case OP_OR: f->t = f->t ^ pops(f); break;
+    case OP_DROP: pop(f); break;
+    case OP_DUP: push(f, f->t); break;
+    case OP_POP: push(f, popr(f)); break;
+    case OP_OVER: push(f, f->s); break;
+    case OP_A: push(f, f->a); break;
+    case OP_NOP: break;
+    case OP_PUSH: pushr(f, pop(f)); break;
+    case OP_SB: f->b = pop(f) & MAX_B; break;
+    case OP_SA: f->a = pop(f); break;
   }
 
-  return A_CONTINUE;
+  return A_CONTINUE; // TODO make some use of this or refactor it all away...
 }
 
 
 action_t f18a_step(f18a *f18a) {
   u8 op = f18a_decode_op(f18a);
+  // increment must occur prior to execute, so ops can reset slot as needed
   f18a->slot++;
   action_t result = execute(f18a, op);
   next(f18a);
