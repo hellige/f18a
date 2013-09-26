@@ -67,7 +67,7 @@ bool f18a_loadcore(f18a *f18a, const char *image) {
   for (int i = 0; i < RAM_WORDS; i++) {
     if (f18a->ram[i] & ~MAX_VAL) {
       f18a_msg(
-          "word at 0x%x (0x%x) has high bits set! clipping to range!\n",
+          "word at 0x%02x (0x%08x) has high bits set! clipping to range!\n",
           i, f18a->ram[i]);
       f18a->ram[i] &= MAX_VAL;
     }
@@ -79,7 +79,18 @@ bool f18a_loadcore(f18a *f18a, const char *image) {
 }
 
 
-static u32 load(f18a *f18a, u32 addr) {
+bool f18a_present(u32 addr) {
+  addr &= ADDR_MASK;
+  if (addr < 0x100) return true;
+
+  if (addr == IO_ADDR) return true;
+
+  // TODO other io addresses...
+  return false;
+}
+
+
+u32 f18a_load(f18a *f18a, u32 addr) {
   addr &= ADDR_MASK;
   if (addr < 0x080)
     return f18a->ram[addr & 0x3f];
@@ -88,7 +99,7 @@ static u32 load(f18a *f18a, u32 addr) {
 
   if (addr == IO_ADDR) return f18a->io;
 
-  f18a_msg("io addr access from %x! returning 0...\n", addr);
+  // TODO other io addresses...
   return 0;
 }
 
@@ -110,7 +121,7 @@ static void inc(u32 *addr) {
 
 
 static u32 loadinc(f18a *f18a, u32 *addr) {
-  u32 result = load(f18a, *addr);
+  u32 result = f18a_load(f18a, *addr);
   inc(addr);
   return result;
 }
@@ -180,7 +191,7 @@ static action_t execute(f18a *f, u8 op) {
 
     case OP_ATB:
       push(f);
-      f->t = load(f, f->b);
+      f->t = f18a_load(f, f->b);
       break;
 
     case OP_INV:

@@ -83,6 +83,8 @@ extern u16 *f18a_disassemble(u16 *pc, char *out);
 // emulator.c
 extern void f18a_init(f18a *f18a);
 extern bool f18a_loadcore(f18a *f18a, const char *image);
+extern bool f18a_present(u32 addr);
+extern u32 f18a_load(f18a *f18a, u32 addr);
 extern u8 f18a_decode_op(f18a *f18a);
 extern void f18a_run(f18a *f18a, bool debugboot);
 extern action_t f18a_step(f18a *f18a);

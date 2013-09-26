@@ -40,21 +40,21 @@ static bool matches(char *tok, char *min, char *full) {
   return prefix(min, tok) && prefix(tok, full);
 }
 
-/*
-static void dumpram(dcpu *dcpu, u16 addr, int len) {
-  while (len > 0) {
-    u16 base = addr & ~7;
-    dcpu_msg("\n%04x:", base);
+static void dumpram(f18a *f18a, u32 addr, int len) {
+  while (len > 0 && addr <= ADDR_MASK) {
+    u32 base = addr & ~7;
+    f18a_msg("\n%02x:", base);
     int pad = addr % 8;
-    dcpu_msg("%*s", 5 * pad, "");
+    f18a_msg("%*s", 5 * pad, "");
     do {
-      dcpu_msg(" %04x", dcpu->ram[addr++]);
-      len--;
-    } while (len && addr % 8);
+      if (f18a_present(addr))
+        f18a_msg(" %05x", f18a_load(f18a, addr));
+      else
+        f18a_msg("      ");
+    } while (--len && ++addr % 8);
   }
-  dcpu_msg("\n");
+  f18a_msg("\n");
 }
-*/
 
 static void dumpheader(void) {
   f18a_msg(
@@ -78,8 +78,6 @@ static void dumpstate(f18a *f) {
   f18a_msg("\n");
 }
 
-static void dumpram(f18a *f18a, u16 addr, int len) {}
-
 bool f18a_debug(f18a *f18a) {
   static char buf[BUFSIZ];
   f18a_msg("entering emulator debugger: enter 'h' for help.\n");
@@ -100,7 +98,7 @@ bool f18a_debug(f18a *f18a) {
           "  step [n]: execute a single instruction (or n instructions)\n"
           "  dump: display the state of the cpu\n"
           "  print addr [len]: display memory contents in hex\n"
-          "      (addr and len are both hex)\n"
+          "      (addr is hex, len decimal)\n"
           "  exit, quit: exit emulator\n"
           "unambiguous abbreviations are recognized "
             "(e.g., s for step or con for continue).\n"
@@ -134,7 +132,7 @@ bool f18a_debug(f18a *f18a) {
         continue;
       }
       char *endptr;
-      u16 addr = strtoul(tok, &endptr, 16);
+      u32 addr = strtoul(tok, &endptr, 16);
       if (*endptr) {
         f18a_msg("addr argument to 'print' must be a hex number: %s\n", endptr);
         continue;
@@ -142,9 +140,9 @@ bool f18a_debug(f18a *f18a) {
       u16 length = 1;
       tok = strtok(NULL, delim);
       if (tok) {
-        length = strtoul(tok, &endptr, 16);
+        length = strtoul(tok, &endptr, 10);
         if (*endptr) {
-          f18a_msg("len argument to 'print' must be a hex number\n");
+          f18a_msg("len argument to 'print' must be a decimal number\n");
           continue;
         }
       }
