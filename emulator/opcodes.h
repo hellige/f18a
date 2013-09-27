@@ -32,8 +32,8 @@
 #define FOR_EACH_OP(apply) \
   apply(OP_RET,   ";") \
   apply(OP_EXEC,  "ex") \
-  apply(OP_JUMP,  "name;") \
-  apply(OP_CALL,  "name") \
+  apply(OP_JUMP,  "jump") \
+  apply(OP_CALL,  "call") \
   apply(OP_UNXT,  "unext") \
   apply(OP_NEXT,  "next") \
   apply(OP_IF,    "if") \

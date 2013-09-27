@@ -20,7 +20,7 @@ class Op(object):
         NEXT_OP += 1
 
 # basic ops...
-Op(";"); Op("ex"); Op("jmp"); Op("call"); Op("unext"); Op("next"); Op("if"); Op("-if")
+Op(";"); Op("ex"); Op("jump"); Op("call"); Op("unext"); Op("next"); Op("if"); Op("-if")
 Op("@p"); Op("@+"); Op("@b"); Op("@"); Op("!p"); Op("!+"); Op("!b"); Op("!")
 Op("+*"); Op("2*"); Op("2/"); Op("-"); Op("+"); Op("and"); Op("or"); Op("drop")
 Op("dup"); Op("pop"); Op("over"); Op("a"); Op("."); Op("push"); Op("b!"); Op("a!")
