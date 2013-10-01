@@ -1,0 +1,120 @@
+#!/usr/bin/env python
+
+import re
+import struct
+import sys
+
+class SyntaxError(Exception):
+    def __init__(self, msg): self.msg = msg
+
+class State(object):
+    def __init__(self):
+        self.words = {}
+        self.stack = []
+        self.ip = 0
+        self.h = 0
+        self.slot = 0
+        self.img = [0] * 128 # ram and rom
+s = State()
+
+NEXT_OP = 0
+def mkop(name):
+    global NEXT_OP
+    op = NEXT_OP
+    NEXT_OP += 1
+    s.words[name] = lambda: asm_op(name, op)
+
+mkop(";"); mkop("ex"); mkop("jump"); mkop("call"); mkop("unext"); mkop("next")
+mkop("if"); mkop("-if"); mkop("@p"); mkop("@+"); mkop("@b"); mkop("@")
+mkop("!p"); mkop("!+"); mkop("!b"); mkop("!"); mkop("+*"); mkop("2*")
+mkop("2/"); mkop("-"); mkop("+"); mkop("and"); mkop("or"); mkop("drop")
+mkop("dup"); mkop("pop"); mkop("over"); mkop("a"); mkop("."); mkop("push")
+mkop("b!"); mkop("a!")
+
+def word(name = None):
+    def decorate(f):
+        s.words[name if name else f.__name__] = f
+        def wrapper(*a, **kw):
+            f(*a, **kw)
+        return wrapper
+    return decorate
+
+def org(a):
+    align()
+    s.ip = a
+    s.h = inc(a)
+    s.slot = 0
+
+@word()
+def rom(): org(0x80)
+@word()
+def ram(): org(0x00)
+
+hex_re = re.compile('0x[0-9A-Fa-f]+')
+dec_re = re.compile('-?[0-9]+')
+
+def idx(a):
+    a &= 0x1ff
+    if a < 0x080:
+        return a & 0x3f
+    if a < 0x100:
+        return 64 + (a & 0x3f)
+    raise SyntaxError("invalid address: %d" % a)
+
+def inc(a):
+    if a & 0x100: return
+    l7 = (a+1) & 0x7f
+    return (a & ~0x7f) | l7
+
+def finish_op():
+    s.img[idx(s.ip)] ^= 0x15555
+    s.ip = inc(s.ip)
+    s.h = inc(s.ip)
+    s.slot = 0
+
+@word('..')
+def align():
+    if s.slot == 0: return
+    while s.slot < 4: s.words['.']()
+    finish_op()
+
+rshifts = [0, 0, 0, 2]
+lshifts = [13, 8, 3, 0]
+
+def asm_op(name, op):
+    if s.slot == 4:
+        finish_op()
+
+    if s.slot == 3 and op & 3:
+        raise SyntaxError("invalid slot 3 opcode: %s" % name)
+    s.img[idx(s.ip)] |= ((op >> rshifts[s.slot]) << lshifts[s.slot])
+    s.slot += 1
+
+def asm_line(line):
+    for tok in line.split():
+        # TODO if int, then...
+        try: s.words[tok]()
+        except KeyError: raise SyntaxError("unknown word: %s" % tok)
+
+def emit(f):
+    for w in s.img: f.write(struct.pack('>L', w))
+
+def main():
+    if len(sys.argv) == 3:
+        input_filename = sys.argv[1]
+        output_filename = sys.argv[2]
+    else:
+        print "usage: fasm <input.asm> <output.img>"
+        sys.exit(1)
+
+    with open(input_filename) as f:
+        for lineno, line in enumerate(f):
+            try: asm_line(line)
+            except SyntaxError as e: 
+                print ("Syntax error on line %d: %s" % (lineno+1, e.msg))
+                sys.exit(1)
+
+    align()
+    with open(output_filename, "wb") as f: emit(f)
+
+if __name__ == '__main__': main()
