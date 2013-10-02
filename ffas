@@ -13,7 +13,7 @@ class State(object):
         self.stack = []
         self.ip = 0
         self.h = 0
-        self.slot = 0
+        self.slot = 4
         self.img = [0] * 128 # ram and rom
 s = State()
 
@@ -39,19 +39,25 @@ def word(name = None):
         return wrapper
     return decorate
 
+def iword(name):
+    try: s.words[name]()
+    except KeyError: raise SyntaxError("unknown word: %s" % name)
+
 def org(a):
     align()
     s.ip = a
-    s.h = inc(a)
-    s.slot = 0
+    s.h = a
+    s.slot = 4
 
 @word()
 def rom(): org(0x80)
 @word()
 def ram(): org(0x00)
+@word()
+def boot(): org(0xaa)
 
-hex_re = re.compile('0x[0-9A-Fa-f]+')
-dec_re = re.compile('-?[0-9]+')
+hex_re = re.compile('0x[0-9A-Fa-f]+$')
+dec_re = re.compile('-?[0-9]+$')
 
 def idx(a):
     a &= 0x1ff
@@ -68,33 +74,40 @@ def inc(a):
 
 def finish_op():
     s.img[idx(s.ip)] ^= 0x15555
-    s.ip = inc(s.ip)
-    s.h = inc(s.ip)
+    s.ip = s.h
+    s.h = inc(s.h)
+    s.img[idx(s.ip)] = 0
     s.slot = 0
 
 @word('..')
 def align():
     if s.slot == 0: return
-    while s.slot < 4: s.words['.']()
+    while s.slot < 4: iword('.')
     finish_op()
+
+def asm_lit(val):
+    iword('@p')
+    s.img[idx(s.h)] = val
+    s.h = inc(s.h)
 
 rshifts = [0, 0, 0, 2]
 lshifts = [13, 8, 3, 0]
 
 def asm_op(name, op):
-    if s.slot == 4:
-        finish_op()
-
+    if s.slot == 4: finish_op()
     if s.slot == 3 and op & 3:
-        raise SyntaxError("invalid slot 3 opcode: %s" % name)
+        align()
     s.img[idx(s.ip)] |= ((op >> rshifts[s.slot]) << lshifts[s.slot])
     s.slot += 1
 
 def asm_line(line):
     for tok in line.split():
-        # TODO if int, then...
-        try: s.words[tok]()
-        except KeyError: raise SyntaxError("unknown word: %s" % tok)
+        if hex_re.match(tok):
+            asm_lit(int(tok, 16))
+        elif dec_re.match(tok):
+            asm_lit(int(tok, 10))
+        else:
+            iword(tok)
 
 def emit(f):
     for w in s.img: f.write(struct.pack('>L', w))
