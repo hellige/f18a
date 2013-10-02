@@ -76,7 +76,6 @@ def finish_op():
     s.img[idx(s.ip)] ^= 0x15555
     s.ip = s.h
     s.h = inc(s.h)
-    s.img[idx(s.ip)] = 0
     s.slot = 0
 
 @word('..')
@@ -97,6 +96,7 @@ def asm_op(name, op):
     if s.slot == 4: finish_op()
     if s.slot == 3 and op & 3:
         align()
+    if s.slot == 0: s.img[idx(s.ip)] = 0
     s.img[idx(s.ip)] |= ((op >> rshifts[s.slot]) << lshifts[s.slot])
     s.slot += 1
 
