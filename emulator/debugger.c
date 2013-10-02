@@ -70,11 +70,11 @@ static void dumpstate(f18a *f) {
       opnames[op]);
   f18a_msg("   stack: [%d]", f->sp);
   for (int i = 0; i < STACK_WORDS; i++)
-    f18a_msg(" %05x", f->stack[(f->sp + i) % STACK_WORDS]);
+    f18a_msg(" %05x", f->stack[(f->sp + STACK_WORDS - i) % STACK_WORDS]);
   f18a_msg("\n");
   f18a_msg("  rstack: [%d]", f->rsp);
   for (int i = 0; i < RSTACK_WORDS; i++)
-    f18a_msg(" %05x", f->rstack[(f->rsp + i) % RSTACK_WORDS]);
+    f18a_msg(" %05x", f->rstack[(f->rsp + RSTACK_WORDS - i) % RSTACK_WORDS]);
   f18a_msg("\n");
 }
 
