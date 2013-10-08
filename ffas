@@ -22,26 +22,19 @@ s = State()
 def mkop(name, code):
     s.words[name] = lambda: asm_op(name, code)
 
+mkop("ex", 1); mkop("@p", 8); mkop("@+", 9); mkop("@b", 10); mkop("@", 11)
+mkop("!p", 12); mkop("!+", 13); mkop("!b", 14); mkop("!", 15); mkop("+*", 16)
+mkop("2*", 17); mkop("2/", 18); mkop("-", 19); mkop("+", 20); mkop("and", 21)
+mkop("or", 22); mkop("drop", 23); mkop("dup", 24); mkop("pop", 25)
+mkop("over", 26); mkop("a", 27); mkop(".", 28); mkop("push", 29); mkop("b!", 30)
+mkop("a!", 31)
 mkop(";", 0) # TODO tail call optimization
-mkop("ex", 1)
 def asm_jump(): asm_op("jump", 2)
 def asm_call(): asm_op("call", 3)
 def asm_unext(): asm_op("unext", 4)
 def asm_next(): asm_op("next", 5)
 def asm_if(): asm_op("if", 6)
 def asm_nif(): asm_op("-if", 7)
-mkop("@p", 8);
-mkop("@+", 9);
-mkop("@b", 10);
-mkop("@", 11);
-mkop("!p", 12);
-mkop("!+", 13);
-mkop("!b", 14);
-mkop("!", 15);
-mkop("+*", 16); mkop("2*", 17)
-mkop("2/", 18); mkop("-", 19); mkop("+", 20); mkop("and", 21); mkop("or", 22); mkop("drop", 23)
-mkop("dup", 24); mkop("pop", 25); mkop("over", 26); mkop("a", 27); mkop(".", 28); mkop("push", 29)
-mkop("b!", 30); mkop("a!", 31)
 
 def word(name = None):
     def decorate(f):
