@@ -15,21 +15,33 @@ class State(object):
         self.h = 0
         self.slot = 4
         self.img = [0] * 128 # ram and rom
+    def push(self, val): self.stack.append(val)
+    def pop(self): return self.stack.pop()
 s = State()
 
-NEXT_OP = 0
-def mkop(name):
-    global NEXT_OP
-    op = NEXT_OP
-    NEXT_OP += 1
-    s.words[name] = lambda: asm_op(name, op)
+def mkop(name, code):
+    s.words[name] = lambda: asm_op(name, code)
 
-mkop(";"); mkop("ex"); mkop("jump"); mkop("call"); mkop("unext"); mkop("next")
-mkop("if"); mkop("-if"); mkop("@p"); mkop("@+"); mkop("@b"); mkop("@")
-mkop("!p"); mkop("!+"); mkop("!b"); mkop("!"); mkop("+*"); mkop("2*")
-mkop("2/"); mkop("-"); mkop("+"); mkop("and"); mkop("or"); mkop("drop")
-mkop("dup"); mkop("pop"); mkop("over"); mkop("a"); mkop("."); mkop("push")
-mkop("b!"); mkop("a!")
+mkop(";", 0) # TODO tail call optimization
+mkop("ex", 1)
+def asm_jump(): asm_op("jump", 2)
+def asm_call(): asm_op("call", 3)
+#mkop("unext", 4)
+#mkop("next", 5)
+def asm_if(): asm_op("if", 6)
+def asm_nif(): asm_op("-if", 7)
+mkop("@p", 8);
+mkop("@+", 9);
+mkop("@b", 10);
+mkop("@", 11);
+mkop("!p", 12);
+mkop("!+", 13);
+mkop("!b", 14);
+mkop("!", 15);
+mkop("+*", 16); mkop("2*", 17)
+mkop("2/", 18); mkop("-", 19); mkop("+", 20); mkop("and", 21); mkop("or", 22); mkop("drop", 23)
+mkop("dup", 24); mkop("pop", 25); mkop("over", 26); mkop("a", 27); mkop(".", 28); mkop("push", 29)
+mkop("b!", 30); mkop("a!", 31)
 
 def word(name = None):
     def decorate(f):
@@ -55,6 +67,41 @@ def rom(): org(0x80)
 def ram(): org(0x00)
 @word()
 def boot(): org(0xaa)
+
+@word("if")
+def if_():
+    asm_if()
+    s.push((s.ip << 2) | s.slot)
+    finish_op()
+@word("-if")
+def nif_():
+    asm_nif()
+    s.push((s.ip << 2) | s.slot)
+    finish_op()
+@word()
+def ahead():
+    asm_jump()
+    s.push((s.ip << 2) | s.slot)
+    finish_op()
+@word()
+def leap():
+    asm_call()
+    s.push((s.ip << 2) | s.slot)
+    finish_op()
+
+masks = [0, 0x3ff, 0xff, 0x7]
+
+@word()
+def then():
+    align()
+    patch = s.pop()
+    slot = patch & 0x3
+    patch >>= 2
+    if patch & ~masks[slot] != s.ip & ~masks[slot]:
+        raise SyntaxError("forward jump out of range: %x from %x in slot %d"
+            % (s.ip, patch, slot))
+    s.img[idx(patch)] &= ~masks[slot]
+    s.img[idx(patch)] |= s.ip & masks[slot]
 
 hex_re = re.compile('0x[0-9A-Fa-f]+$')
 dec_re = re.compile('-?[0-9]+$')

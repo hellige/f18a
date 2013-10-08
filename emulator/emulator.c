@@ -189,7 +189,7 @@ static void jump(f18a *f) {
   // case it'll be overwritten anyway.
   f->p &= ~0x100;
   u32 dest = f->i & dmasks[slot];
-  f->p = (f->p | ~dmasks[slot]) & dest;
+  f->p = (f->p & ~dmasks[slot]) | dest;
 
   // and we're done with this instruction word...
   skip(f);
