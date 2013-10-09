@@ -101,6 +101,31 @@ def then():
     s.img[idx(patch)] &= ~masks[slot]
     s.img[idx(patch)] |= s.ip & masks[slot]
 
+@word("for")
+def for_():
+    iword('push')
+    align()
+    s.push(s.ip)
+
+@word()
+def next():
+    dest = s.pop()
+    asm_next()
+    # TODO check range and align if necessary
+    if dest & ~masks[s.slot] != s.ip & ~masks[s.slot]:
+        raise SyntaxError("backward jump out of range: %x to %x in slot %d"
+            % (s.ip, dest, s.slot))
+    ip = s.ip
+    slot = s.slot
+    finish_op()
+    s.img[idx(ip)] &= ~masks[slot]
+    s.img[idx(ip)] |= dest & masks[slot]
+
+@word()
+def unext():
+    asm_unext()
+    s.pop()
+
 hex_re = re.compile('0x[0-9A-Fa-f]+$')
 dec_re = re.compile('-?[0-9]+$')
 
